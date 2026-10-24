@@ -5,6 +5,7 @@ import projectRoutes from './projectRoutes.js';
 import taskRoutes from './taskRoutes.js';
 import userRoutes from './userRoutes.js';
 import commentRoutes from './commentRoutes.js';
+import notificationRoutes from './notificationRoutes.js';
 
 const apiRouter = Router();
 
@@ -15,6 +16,7 @@ apiRouter.use('/projects', projectRoutes);
 apiRouter.use('/tasks', taskRoutes);
 apiRouter.use('/users', userRoutes);
 apiRouter.use('/comments', commentRoutes);
+apiRouter.use('/notifications', notificationRoutes);
 
 // Base route for API discovery
 apiRouter.get('/', (req, res) => {

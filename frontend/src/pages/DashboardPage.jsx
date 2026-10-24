@@ -404,6 +404,7 @@ export const DashboardPage = () => {
               isOpen={isTaskModalOpen}
               onClose={() => setIsTaskModalOpen(false)}
               projectId={activeProject._id}
+              project={activeProject}
               defaultStatus={taskDefaultStatus}
               currentUser={user}
               onTaskCreated={handleTaskCreated}

@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import Comment from '../models/Comment.js';
 import Task from '../models/Task.js';
 import Project from '../models/Project.js';
+import { createAndSendNotification } from './notificationController.js';
+import { broadcastToProject } from '../socket.js';
 
 /**
  * @desc    Create a comment on a task
@@ -62,6 +64,46 @@ export const createComment = async (req, res, next) => {
     });
 
     await comment.populate('user', 'name email');
+
+    // Notify all relevant stakeholders on the task
+    const recipientIds = new Set();
+    const currentUserIdStr = req.user._id.toString();
+
+    if (task.assignedUser && task.assignedUser.toString() !== currentUserIdStr) {
+      recipientIds.add(task.assignedUser.toString());
+    }
+    if (task.createdBy && task.createdBy.toString() !== currentUserIdStr) {
+      recipientIds.add(task.createdBy.toString());
+    }
+    if (project.owner && project.owner.toString() !== currentUserIdStr) {
+      recipientIds.add(project.owner.toString());
+    }
+
+    const priorCommenters = await Comment.find({ task: taskId }).distinct('user');
+    for (const cUser of priorCommenters) {
+      if (cUser && cUser.toString() !== currentUserIdStr) {
+        recipientIds.add(cUser.toString());
+      }
+    }
+
+    const shortMsg = message.trim().length > 70 ? message.trim().substring(0, 70) + '...' : message.trim();
+    for (const recId of recipientIds) {
+      await createAndSendNotification({
+        recipient: recId,
+        sender: req.user._id,
+        type: 'task_comment',
+        title: 'New Comment on Task',
+        message: `${req.user.name} commented on "${task.title}": "${shortMsg}"`,
+        task: task._id,
+        project: project._id,
+      });
+    }
+
+    // Broadcast live comment event to project viewers
+    broadcastToProject(project._id, 'comment_created', {
+      taskId: task._id,
+      comment,
+    });
 
     res.status(201).json({
       success: true,
@@ -171,6 +213,13 @@ export const deleteComment = async (req, res, next) => {
     }
 
     await Comment.findByIdAndDelete(commentId);
+
+    if (project) {
+      broadcastToProject(project._id, 'comment_deleted', {
+        taskId: comment.task,
+        commentId,
+      });
+    }
 
     res.status(200).json({
       success: true,

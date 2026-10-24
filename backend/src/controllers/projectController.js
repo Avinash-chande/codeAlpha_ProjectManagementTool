@@ -2,6 +2,9 @@ import mongoose from 'mongoose';
 import Project from '../models/Project.js';
 import Task from '../models/Task.js';
 import User from '../models/User.js';
+import Comment from '../models/Comment.js';
+import { createAndSendNotification } from './notificationController.js';
+import { broadcastToProject } from '../socket.js';
 
 /**
  * @desc    Get all projects for the logged-in user with task statistics and overall metrics
@@ -281,9 +284,12 @@ export const deleteProject = async (req, res, next) => {
       throw err;
     }
 
-    // Delete project and its tasks
-    await Project.findByIdAndDelete(id);
+    // Delete project and its tasks and comments
+    const projectTasks = await Task.find({ project: id }).select('_id');
+    const taskIds = projectTasks.map((t) => t._id);
+    await Comment.deleteMany({ task: { $in: taskIds } });
     await Task.deleteMany({ project: id });
+    await Project.findByIdAndDelete(id);
 
     res.status(200).json({
       success: true,
@@ -360,6 +366,16 @@ export const addProjectMember = async (req, res, next) => {
 
     project.members.push(targetUser._id);
     await project.save();
+
+    // Notify member of addition to project
+    await createAndSendNotification({
+      recipient: targetUser._id,
+      sender: req.user._id,
+      type: 'project_invitation',
+      title: 'Added to Project',
+      message: `${req.user.name} added you to project "${project.name}"`,
+      project: project._id,
+    });
 
     const updatedProject = await Project.findById(id)
       .populate('owner', 'name email')
@@ -472,16 +488,55 @@ export const createTask = async (req, res, next) => {
       throw err;
     }
 
+    let targetAssignedUserId = null;
+    let assignedName = assignedTo && assignedTo.trim() ? assignedTo.trim() : req.user.name;
+
+    if (req.body.assignedUser && mongoose.Types.ObjectId.isValid(req.body.assignedUser)) {
+      targetAssignedUserId = req.body.assignedUser;
+      const targetUser = await User.findById(targetAssignedUserId);
+      if (targetUser) assignedName = targetUser.name;
+    } else if (assignedTo && assignedTo.trim() && assignedTo.trim() !== 'Unassigned') {
+      const allProjectUsers = [project.owner, ...project.members];
+      const matched = await User.findOne({
+        _id: { $in: allProjectUsers },
+        $or: [
+          { email: assignedTo.trim().toLowerCase() },
+          { name: new RegExp(`^${assignedTo.trim()}$`, 'i') },
+        ],
+      });
+      if (matched) {
+        targetAssignedUserId = matched._id;
+        assignedName = matched.name;
+      }
+    }
+
     const task = await Task.create({
       title: title.trim(),
       description: description ? description.trim() : '',
       project: id,
       status: status || 'To Do',
       priority: priority || 'Medium',
-      assignedTo: assignedTo && assignedTo.trim() ? assignedTo.trim() : req.user.name,
+      assignedTo: assignedName,
+      assignedUser: targetAssignedUserId,
       dueDate: dueDate ? new Date(dueDate) : null,
       createdBy: req.user._id,
     });
+
+    // Notify assigned user if someone else was assigned
+    if (targetAssignedUserId && targetAssignedUserId.toString() !== req.user._id.toString()) {
+      await createAndSendNotification({
+        recipient: targetAssignedUserId,
+        sender: req.user._id,
+        type: 'task_assigned',
+        title: 'Task Assigned',
+        message: `${req.user.name} assigned you to task "${task.title}" in ${project.name}`,
+        task: task._id,
+        project: project._id,
+      });
+    }
+
+    // Broadcast live event to project room
+    broadcastToProject(id, 'task_created', task);
 
     res.status(201).json({
       success: true,
@@ -510,14 +565,82 @@ export const updateTask = async (req, res, next) => {
       throw err;
     }
 
+    const oldStatus = task.status;
+    const oldAssignedUser = task.assignedUser;
+
     if (status !== undefined) task.status = status;
     if (title !== undefined) task.title = title.trim();
     if (description !== undefined) task.description = description.trim();
     if (priority !== undefined) task.priority = priority;
-    if (assignedTo !== undefined) task.assignedTo = assignedTo.trim();
     if (dueDate !== undefined) task.dueDate = dueDate ? new Date(dueDate) : null;
 
+    if (req.body.assignedUser !== undefined) {
+      task.assignedUser = req.body.assignedUser || null;
+      if (req.body.assignedUser) {
+        const u = await User.findById(req.body.assignedUser);
+        if (u) task.assignedTo = u.name;
+      } else {
+        task.assignedTo = 'Unassigned';
+      }
+    } else if (assignedTo !== undefined) {
+      task.assignedTo = assignedTo.trim();
+      if (assignedTo.trim() && assignedTo.trim() !== 'Unassigned') {
+        const project = await Project.findById(task.project);
+        if (project) {
+          const allProjectUsers = [project.owner, ...project.members];
+          const matched = await User.findOne({
+            _id: { $in: allProjectUsers },
+            $or: [
+              { email: assignedTo.trim().toLowerCase() },
+              { name: new RegExp(`^${assignedTo.trim()}$`, 'i') },
+            ],
+          });
+          if (matched) {
+            task.assignedUser = matched._id;
+          }
+        }
+      }
+    }
+
     await task.save();
+
+    // Trigger notification if newly assigned
+    if (
+      task.assignedUser &&
+      (!oldAssignedUser || oldAssignedUser.toString() !== task.assignedUser.toString()) &&
+      task.assignedUser.toString() !== req.user._id.toString()
+    ) {
+      await createAndSendNotification({
+        recipient: task.assignedUser,
+        sender: req.user._id,
+        type: 'task_assigned',
+        title: 'Task Assigned',
+        message: `${req.user.name} assigned you to task "${task.title}"`,
+        task: task._id,
+        project: task.project,
+      });
+    }
+
+    // Trigger notification if status changed
+    if (
+      status &&
+      status !== oldStatus &&
+      task.assignedUser &&
+      task.assignedUser.toString() !== req.user._id.toString()
+    ) {
+      await createAndSendNotification({
+        recipient: task.assignedUser,
+        sender: req.user._id,
+        type: 'task_status_changed',
+        title: 'Task Status Updated',
+        message: `${req.user.name} moved "${task.title}" to ${status}`,
+        task: task._id,
+        project: task.project,
+      });
+    }
+
+    // Broadcast live event to project room
+    broadcastToProject(task.project, 'task_updated', task);
 
     res.status(200).json({
       success: true,
@@ -544,6 +667,12 @@ export const deleteTask = async (req, res, next) => {
       err.statusCode = 404;
       throw err;
     }
+
+    // Cascade delete associated comments
+    await Comment.deleteMany({ task: id });
+
+    // Broadcast live event to project room
+    broadcastToProject(task.project, 'task_deleted', { taskId: id });
 
     res.status(200).json({
       success: true,

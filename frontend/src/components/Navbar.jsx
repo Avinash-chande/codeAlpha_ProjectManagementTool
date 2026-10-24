@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Layers, LogIn, UserPlus, LayoutDashboard, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { NotificationBell } from './NotificationBell';
 
 export const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth();
@@ -39,7 +40,10 @@ export const Navbar = () => {
         {/* Right Actions */}
         <div className="flex items-center gap-3 sm:gap-4">
           {isAuthenticated ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Notification Bell */}
+              <NotificationBell />
+
               <div className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-800/60 border border-slate-800">
                 <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center text-white text-xs font-bold shadow-sm">
                   {getInitials(user?.name)}

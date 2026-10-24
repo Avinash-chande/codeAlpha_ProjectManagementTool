@@ -7,13 +7,13 @@ const router = Router();
 
 router.use(protect);
 
-router.route('/:id')
-  .patch(updateTask)
-  .delete(deleteTask);
-
 // Task comments
 router.route('/:taskId/comments')
   .get(getComments)
   .post(createComment);
+
+router.route('/:id')
+  .patch(updateTask)
+  .delete(deleteTask);
 
 export default router;

@@ -10,9 +10,11 @@ import {
   Trash2, 
   Settings,
   Users,
-  Crown
+  Crown,
+  MessageSquare
 } from 'lucide-react';
 import { updateTaskApi, deleteTaskApi } from '../services/api';
+import { TaskDetailsModal } from './TaskDetailsModal';
 
 export const KanbanBoard = ({
   project,
@@ -25,6 +27,7 @@ export const KanbanBoard = ({
   onTaskDeleted,
 }) => {
   const [movingTaskId, setMovingTaskId] = useState(null);
+  const [selectedTask, setSelectedTask] = useState(null);
 
   const columns = [
     { id: 'To Do', name: 'To Do', icon: CircleDot, color: 'text-slate-400', badge: 'bg-slate-800 text-slate-300' },
@@ -217,14 +220,18 @@ export const KanbanBoard = ({
                   colTasks.map((task) => (
                     <div
                       key={task._id}
-                      className="bg-slate-900 border border-slate-800/90 rounded-xl p-4 shadow-sm hover:border-slate-700 transition-all space-y-3 group"
+                      onClick={() => setSelectedTask(task)}
+                      className="bg-slate-900 border border-slate-800/90 rounded-xl p-4 shadow-sm hover:border-indigo-500/50 hover:shadow-lg hover:shadow-indigo-500/10 transition-all space-y-3 group cursor-pointer"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <h4 className="text-sm font-medium text-slate-100 leading-snug break-words">
+                        <h4 className="text-sm font-medium text-slate-100 group-hover:text-white leading-snug break-words transition-colors">
                           {task.title}
                         </h4>
                         <button
-                          onClick={() => handleDelete(task._id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(task._id);
+                          }}
                           className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 transition-opacity p-1 -mr-1 -mt-1 cursor-pointer"
                           title="Delete task"
                         >
@@ -264,19 +271,33 @@ export const KanbanBoard = ({
                         )}
                       </div>
 
-                      {/* Quick Status Move Dropdown */}
-                      <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-500">
-                        <span>Move to:</span>
-                        <select
-                          value={task.status}
-                          disabled={movingTaskId === task._id}
-                          onChange={(e) => handleStatusChange(task._id, e.target.value)}
-                          className="bg-slate-950 border border-slate-800 text-[11px] text-slate-300 rounded px-2 py-1 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                      {/* Quick Status Move Dropdown & Comments indicator */}
+                      <div 
+                        onClick={(e) => e.stopPropagation()} 
+                        className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-500"
+                      >
+                        <div 
+                          onClick={() => setSelectedTask(task)}
+                          className="flex items-center gap-1 text-[11px] text-slate-400 group-hover:text-indigo-400 transition-colors cursor-pointer"
+                          title="Click to view task details and comments"
                         >
-                          <option value="To Do">To Do</option>
-                          <option value="In Progress">In Progress</option>
-                          <option value="Completed">Completed</option>
-                        </select>
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>Comments</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] text-slate-500">Move:</span>
+                          <select
+                            value={task.status}
+                            disabled={movingTaskId === task._id}
+                            onChange={(e) => handleStatusChange(task._id, e.target.value)}
+                            className="bg-slate-950 border border-slate-800 text-[11px] text-slate-300 rounded px-2 py-0.5 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                          >
+                            <option value="To Do">To Do</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
                   ))
@@ -295,6 +316,21 @@ export const KanbanBoard = ({
           );
         })}
       </div>
+
+      {/* Task Details & Comments Modal */}
+      {selectedTask && (
+        <TaskDetailsModal
+          isOpen={!!selectedTask}
+          onClose={() => setSelectedTask(null)}
+          task={selectedTask}
+          project={project}
+          currentUser={currentUser}
+          onTaskUpdated={(updated) => {
+            onTaskUpdated(updated);
+            setSelectedTask(updated);
+          }}
+        />
+      )}
     </div>
   );
 };
