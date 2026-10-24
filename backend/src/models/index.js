@@ -1,13 +1,13 @@
-/**
- * Models Directory Index
- *
- * Schemas to be implemented in subsequent phases:
- * - User: Authentication, roles, profile, avatar
- * - Project: Title, description, owner, members, deadline
- * - Task: Title, description, status (Todo/In-Progress/Done), priority, assignee, attachments
- * - Comment: Task discussions, mentions, timestamps
- */
+import User from './User.js';
+import Project from './Project.js';
+import Task from './Task.js';
+import Comment from './Comment.js';
+
+export { User, Project, Task, Comment };
 
 export const models = {
-  // Models will be registered and exported here in future phases
+  User,
+  Project,
+  Task,
+  Comment,
 };
