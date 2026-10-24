@@ -6,6 +6,7 @@ export const CreateTaskModal = ({
   isOpen,
   onClose,
   projectId,
+  project,
   defaultStatus = 'To Do',
   currentUser,
   onTaskCreated,
@@ -14,12 +15,32 @@ export const CreateTaskModal = ({
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState(defaultStatus);
   const [priority, setPriority] = useState('Medium');
-  const [assignedTo, setAssignedTo] = useState(currentUser?.name || '');
+  const [assignedTo, setAssignedTo] = useState(currentUser?.name || 'Unassigned');
+  const [assignedUserId, setAssignedUserId] = useState(currentUser?._id || null);
   const [dueDate, setDueDate] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   if (!isOpen) return null;
+
+  // Prepare list of assignable users from project
+  const assignableUsers = [];
+  if (project?.owner) {
+    assignableUsers.push({
+      _id: project.owner._id || project.owner,
+      name: project.owner.name || 'Project Owner',
+      role: 'Owner',
+    });
+  }
+  (project?.members || []).forEach((m) => {
+    if (m && m._id !== project?.owner?._id) {
+      assignableUsers.push({
+        _id: m._id,
+        name: m.name || m.email,
+        role: 'Member',
+      });
+    }
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -37,7 +58,8 @@ export const CreateTaskModal = ({
         description: description.trim(),
         status,
         priority,
-        assignedTo: assignedTo.trim() || currentUser?.name || 'Unassigned',
+        assignedTo: assignedTo.trim() || 'Unassigned',
+        assignedUser: assignedUserId || null,
         dueDate: dueDate || null,
       });
 
@@ -123,13 +145,51 @@ export const CreateTaskModal = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1.5">Assigned User</label>
-              <input
-                type="text"
-                value={assignedTo}
-                onChange={(e) => setAssignedTo(e.target.value)}
-                placeholder="Name"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-              />
+              {assignableUsers.length > 0 ? (
+                <select
+                  value={assignedUserId || (assignedTo === 'Unassigned' ? '' : 'custom')}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val) {
+                      setAssignedUserId(null);
+                      setAssignedTo('Unassigned');
+                    } else if (val === 'custom') {
+                      setAssignedUserId(null);
+                      setAssignedTo('');
+                    } else {
+                      setAssignedUserId(val);
+                      const selected = assignableUsers.find((u) => u._id === val);
+                      setAssignedTo(selected ? selected.name : 'Assigned');
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                >
+                  <option value="">Unassigned</option>
+                  {assignableUsers.map((u) => (
+                    <option key={u._id} value={u._id}>
+                      {u.name} ({u.role})
+                    </option>
+                  ))}
+                  <option value="custom">Other / Custom name...</option>
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={assignedTo}
+                  onChange={(e) => setAssignedTo(e.target.value)}
+                  placeholder="Name"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              )}
+              {assignedUserId === null && assignedTo !== 'Unassigned' && assignableUsers.length > 0 && (
+                <input
+                  type="text"
+                  value={assignedTo}
+                  onChange={(e) => setAssignedTo(e.target.value)}
+                  placeholder="Enter custom assignee name"
+                  className="mt-2 w-full px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                />
+              )}
             </div>
 
             <div>

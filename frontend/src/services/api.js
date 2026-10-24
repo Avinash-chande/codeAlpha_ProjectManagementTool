@@ -137,4 +137,25 @@ export const deleteCommentApi = async (commentId) => {
   return response.data;
 };
 
+// Notification endpoints
+export const getNotificationsApi = async () => {
+  const response = await api.get('/notifications');
+  return response.data;
+};
+
+export const markNotificationAsReadApi = async (notificationId) => {
+  const response = await api.patch(`/notifications/${notificationId}/read`);
+  return response.data;
+};
+
+export const markAllNotificationsAsReadApi = async () => {
+  const response = await api.patch('/notifications/read-all');
+  return response.data;
+};
+
+export const deleteNotificationApi = async (notificationId) => {
+  const response = await api.delete(`/notifications/${notificationId}`);
+  return response.data;
+};
+
 export default api;
