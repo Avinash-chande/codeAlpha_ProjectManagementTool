@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Terminal, Send, CheckCircle2, XCircle, Loader2, Copy, Check } from 'lucide-react';
-import { fetchHealthStatus, pingServer } from '../services/api';
+import { fetchHealthStatus, pingServer, getMeApi } from '../services/api';
 
 export const ApiTester = () => {
   const [selectedEndpoint, setSelectedEndpoint] = useState('/api/health');
@@ -17,8 +17,10 @@ export const ApiTester = () => {
       let data;
       if (selectedEndpoint === '/api/health') {
         data = await fetchHealthStatus();
-      } else {
+      } else if (selectedEndpoint === '/api/health/ping') {
         data = await pingServer();
+      } else if (selectedEndpoint === '/api/auth/me') {
+        data = await getMeApi();
       }
       const duration = Math.round(performance.now() - startTime);
 
@@ -34,7 +36,7 @@ export const ApiTester = () => {
         success: false,
         status: err.response?.status || 500,
         duration,
-        error: err.message,
+        error: err.response?.data?.message || err.message,
         data: err.response?.data || null,
       });
     } finally {
@@ -74,8 +76,9 @@ export const ApiTester = () => {
             onChange={(e) => setSelectedEndpoint(e.target.value)}
             className="w-full bg-transparent text-slate-200 focus:outline-none text-xs sm:text-sm font-mono cursor-pointer"
           >
-            <option value="/api/health" className="bg-slate-900 text-white">/api/health (Full System & DB Health)</option>
+            <option value="/api/health" className="bg-slate-900 text-white">/api/health (System & DB Health)</option>
             <option value="/api/health/ping" className="bg-slate-900 text-white">/api/health/ping (Lightweight Ping)</option>
+            <option value="/api/auth/me" className="bg-slate-900 text-white">/api/auth/me (Protected User Profile)</option>
           </select>
         </div>
 
@@ -120,7 +123,7 @@ export const ApiTester = () => {
           </div>
 
           <pre className="p-4 text-xs font-mono text-emerald-300 overflow-x-auto max-h-64 leading-relaxed">
-            {JSON.stringify(response.data || response.error, null, 2)}
+            {JSON.stringify(response.data || { error: response.error }, null, 2)}
           </pre>
         </div>
       ) : (
