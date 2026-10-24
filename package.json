@@ -1,0 +1,18 @@
+{
+  "name": "codealpha-project-management-tool",
+  "version": "1.0.0",
+  "description": "Collaborative Project Management Tool (Trello/Asana-like full-stack app)",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "start:backend": "npm run start --prefix backend",
+    "build:frontend": "npm run build --prefix frontend",
+    "install:backend": "npm install --prefix backend",
+    "install:frontend": "npm install --prefix frontend",
+    "install:all": "npm install && npm run install:backend && npm run install:frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
